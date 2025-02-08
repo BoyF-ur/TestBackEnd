@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 const config = require("./config.json");
 const mongoose = require("mongoose");
@@ -60,6 +59,7 @@ app.post("/create-account", async (req, res) => {
 
 });
 
+console.log("Test");
 
 app.listen(8000);
 module.exports = app;
