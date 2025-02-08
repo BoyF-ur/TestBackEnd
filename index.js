@@ -60,6 +60,7 @@ app.post("/create-account", async (req, res) => {
 });
 
 console.log("Test");
+console.log("HiepPotato");
 
 app.listen(8000);
 module.exports = app;
