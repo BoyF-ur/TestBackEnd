@@ -47,7 +47,7 @@ app.post("/create-account", async (req, res) => {
             expiresIn: "72h",
         }
     
-    );
+    ); 
 
     return res.status(201).json({
         error: false,
@@ -59,8 +59,6 @@ app.post("/create-account", async (req, res) => {
 
 });
 
-console.log("Test");
-console.log("HiepPotato");
 
 app.listen(8000);
 module.exports = app;
