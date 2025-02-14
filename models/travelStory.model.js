@@ -18,10 +18,4 @@ const travelStorySchema = new Schema({
     visitedDate: { type:Date, required: true},
 });
 
-travelStorySchema.pre("save", function (next) {
-    this.titleNoDiacritics = removeAccents(this.title);
-    this.storyNoDiacritics = removeAccents(this.story);
-    next();
-});
-
 module.exports = mongoose.model("TravelStory", travelStorySchema);
