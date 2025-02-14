@@ -11,7 +11,10 @@ const TravelStory = require("./models/travelStory.model");
 const upload = require("./multer");
 const fs = require("fs");
 const path = require("path");
+
 const { authenticateToken } = require("./utilities");
+//const { AsyncLocalStorage } = require("async_hooks");
+const { error } = require("console");
 
 mongoose.connect(config.connectionString);
 
@@ -116,23 +119,27 @@ app.get("/get-user", authenticateToken, async (req, res) => {
 // Travel Story
 
 app.post("/add-travel-story", authenticateToken, async (req, res) => {
-    const {title, story, visitedLocation, imageURL, visitedDate} = req.body;
-    const { userId } = req.user
+    //const {title, story, visitedLocation, imageUrl, visitedDate} = req.body;
+    const { userId } = req.user;
+    req.body.userId = userId;
 
-    if(!title || !story || !visitedLocation || !imageURL || !visitedDate) {
+    console.log(req.user);
+
+    function removeAccents(str) {
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+
+    req.body.titleNoDiacritics = removeAccents(req.body.title);
+    req.body.storyNoDiacritics = removeAccents(req.body.story);
+
+    if(!req.body.title || !req.body.story || !req.body.visitedLocation || !req.body.imageUrl || !req.body.visitedDate) {
         return res.status(400).json({ error: true, message: "All fields are required"});
     }
 
-    const parsedVisitedDate = new Date(parseInt(visitedDate));
+    const parsedVisitedDate = new Date(parseInt(req.body.visitedDate));
+    req.body.visitedDate = parsedVisitedDate;
     try{
-        const travelStory = new TravelStory({
-            title,
-            story,
-            visitedLocation,
-            userId,
-            imageURL,
-            visitedDate: parsedVisitedDate,
-        });
+        const travelStory = new TravelStory(req.body);
         
         await travelStory.save();
         res.status(201).json({story: travelStory, message:"Added Successfully"});
@@ -146,8 +153,11 @@ app.post("/add-travel-story", authenticateToken, async (req, res) => {
 
 app.get("/get-all-stories", authenticateToken, async (req, res) => {
     const {userId} = req.user;
+    
     try{
-        const travelStories = await TravelStory.find({userId: userId}).sort({isFavourite: -1});
+        const travelStories = await TravelStory.find({userId: userId}).sort({
+            isFavourite: -1
+        });
         res.status(200).json({stories: travelStories});
     } catch (error){
         res.status(500).json({error:true, message: error.message});
@@ -158,14 +168,140 @@ app.get("/get-all-stories", authenticateToken, async (req, res) => {
 app.post("/image-upload", upload.single("image"), async (req, res) => {
     try{
         if(!req.file){
-            return res.status(400).json({error: true, message: "No image uploaded"});
+            return res.
+            status(400)
+            .json({error: true, message: "No image uploaded"});
         }
-        const imageURL = `http://localhost:8000/uploads/${req.file.filename}`;
-        res.status(201).json({imageURL});
-    }catch (error){
+
+        const imageUrl = `http://localhost:8000/uploads/${req.file.filename}`;
+        res.status(201).json({ imageUrl });
+
+    } catch(error){
+        res.status(500).json({error:true, message:error.message});
+    }
+});
+
+//Delete image from uploads folder
+app.delete("/delete-image", async (req, res) =>{
+    const {imageUrl} = req.query;
+    if(!imageUrl){
+        return res
+        .status(400)
+        .json({error: true, message: "imageUrl is required"});
+    }
+    try{
+        const filename = path.basename(imageUrl);
+        const filePath = path.join(__dirname, 'uploads', filename);
+        if(fs.existsSync(filePath)){
+            fs.unlinkSync(filePath);
+            return res.status(200).json({message:"Image delete successfully"});
+        }else{
+            return res.status(200).json({message:"Image not found"});
+        }
+    }catch(error){
+            res.status(500).json({error:true, message: error.message});
+        }
+});
+
+//Serve static files from uploads and assets directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/assets", express.static(path.join(__dirname, "assets")));
+
+app.put("/edit-story/:id", authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { title, story, visitedLocation, imageUrl, visitedDate } = req.body;
+    const { userId } = req.user;
+
+    if(!title || !story || !visitedLocation || !imageUrl || !visitedDate) {
+        return res.status(400).json({ error: true, message: "All fields are required"});
+    }
+
+    const parsedVisitedDate = new Date(parseInt(visitedDate));  
+    try{
+        const travelStory = await TravelStory.findOne({ _id: id, userId: userId});
+
+        if(!travelStory){
+            return res.status(400).json({error: true, message:"Travel Story not found"});
+        }
+        const placeholderImgUrl = `http://localhost:8000/assets/placeholder.jpg`;
+        
+        travelStory.title = title;
+        travelStory.story = story;
+        travelStory.visitedLocation = visitedLocation;
+        travelStory.imageUrl = imageUrl || placeholderImgUrl;
+        travelStory.visitedDate = parsedVisitedDate;
+
+        await travelStory.save();
+        res.status(200).json({story: travelStory, message: 'Update successful'});
+    }catch(error){
         res.status(500).json({error: true, message: error.message});
     }
 
+});
+
+//Delete Story
+app.delete("/delete-story/:id", authenticateToken, async (req, res) => {
+    const {userId} = req.user;
+    const {id} = req.params;
+
+    try{
+         const travelStory = await TravelStory.findOne({ _id: id, userId: userId});
+
+        if(!travelStory){
+            return res.status(404).json({error: true, message:"Travel Story not found"});
+        }
+        await travelStory.deleteOne({ _id: id, userId : userId });
+
+        const imageUrl = travelStory.imageUrl;
+        const filename = path.basename(imageUrl);
+
+        const filePath = path.join(__dirname, 'uploads', filename);
+
+        fs.unlink(filePath, (err) =>{
+            if(err){
+                console.error("Failed to delete image file:", err);
+            }
+        });
+        res.status(200).json({message:"Travel Story delete successfully"});
+
+    } catch(error){
+        res.status(500).json({error: true, message: error.message});
+    }
+});
+
+//Search Story
+
+app.get("/search", authenticateToken, async (req, res) => {
+    const {query} = req.query;
+    const {userId} = req.user;
+    
+    if(!query){
+        return res.status(404).json({error: true, message: "query is required"});
+    }
+    // Hàm loại bỏ dấu
+    function removeAccents(str) {
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    removeAccents(req.query.query);
+    const regex = new RegExp(req.query.query, "i");
+    
+    try{
+        const searchResults = await TravelStory.find({
+            userId : userId,
+            $or:[
+                {title: regex},
+                {titleNoDiacritics: regex},
+                {story: regex},
+                {storyNoDiacritics: regex},
+            ],  
+        }).sort({ isFavourite : -1 });
+
+        
+
+        res.status(200).json({stories: searchResults});
+    }catch(error){
+        res.status(500).json({error:true, message: error.message});
+    }
 });
 
 app.listen(8000);
