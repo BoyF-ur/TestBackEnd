@@ -1,9 +1,7 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-function removeAccents(str) {
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
+
 
 const travelStorySchema = new Schema({
     title: { type:String, required: true},
