@@ -6,7 +6,15 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const User = require("./models/user.model");
-const userModel = require("./models/user.model");
+const TravelStory = require("./models/travelStory.model");
+
+const upload = require("./multer");
+const fs = require("fs");
+const path = require("path");
+
+const { authenticateToken } = require("./utilities");
+//const { AsyncLocalStorage } = require("async_hooks");
+const { error } = require("console");
 
 mongoose.connect(config.connectionString);
 
@@ -14,6 +22,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({origin: "*"}));
 
+//Creat Account
 app.post("/create-account", async (req, res) => {
     const {fullName, email, password} = req.body;
     if(!fullName || !email || !password){
@@ -23,7 +32,7 @@ app.post("/create-account", async (req, res) => {
     }
 
     const isUser = await User.findOne({ email });
-    console.log(isUser);
+
     if(isUser){
         return res
         .status(400)
@@ -59,6 +68,8 @@ app.post("/create-account", async (req, res) => {
 
 });
 
+console.log("Test");
+console.log("HiepPotato");
 
 app.listen(8000);
 module.exports = app;
