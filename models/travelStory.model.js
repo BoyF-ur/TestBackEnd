@@ -19,4 +19,5 @@ const travelStorySchema = new Schema({
 });
 
 
+
 module.exports = mongoose.model("TravelStory", travelStorySchema);
