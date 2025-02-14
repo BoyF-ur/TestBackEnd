@@ -304,5 +304,7 @@ app.get("/search", authenticateToken, async (req, res) => {
     }
 });
 
+console.log("HiepPotato");
+
 app.listen(8000);
 module.exports = app;
